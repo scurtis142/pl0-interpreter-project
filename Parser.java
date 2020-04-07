@@ -231,7 +231,6 @@ public class Parser {
      */
     private final static TokenSet LVALUE_START_SET =
             new TokenSet(Token.IDENTIFIER);
-
     /**
      * Set of tokens that may start a Factor.
      */
@@ -564,18 +563,25 @@ public class Parser {
                         new ExpNode.ErrorNode(loc), new StatementNode.ErrorNode(loc), true);
             });
 
-    private StatementNode.DoNode.DoBranch parseDoBranch(TokenSet recoverSet){
+    /**
+     * Rule: DoBranch -> Condition KW_THEN StatementList [KW_EXIT]
+     */
+    private StatementNode.DoNode.DoBranch parseDoBranch(TokenSet recoverSet) {
         return doBranch.parse("Do Branch", DO_BRANCH_START_SET, recoverSet,
                 () -> {
+                    /* Current token is in DO_BRANCH_START_SET */
                     ExpNode condition;
                     StatementNode statementList;
                     boolean exit = false;
                     Location loc = tokens.getLocation();
+                    /* Include KW_THEN here as it follows condition */
                     condition = parseCondition(recoverSet.union(Token.KW_THEN));
+                    /* STATEMENT_START_SET included as it follows THEN */
                     tokens.match(Token.KW_THEN, STATEMENT_START_SET);
-                    statementList = parseStatementList(recoverSet.union(Token.KW_EXIT, Token.SEPARATOR, Token.KW_OD));
+                    /* KW_EXIT may follow */
+                    statementList = parseStatementList(recoverSet.union(Token.KW_EXIT));
                     if (tokens.isMatch(Token.KW_EXIT)) {
-                        tokens.match(Token.KW_EXIT);
+                        tokens.match(Token.KW_EXIT); /* Cannot fail */
                         exit = true;
                     }
                     return new StatementNode.DoNode.DoBranch(loc, condition, statementList, exit);
@@ -588,12 +594,15 @@ public class Parser {
     private StatementNode parseDoStatement(TokenSet recoverSet) {
         return stmt.parse ("Do Statement", Token.KW_DO, recoverSet,
                 () -> {
+                    /* Current token is KW_DO */
                     Location loc = tokens.getLocation();
                     List<StatementNode.DoNode.DoBranch> branches = new LinkedList<>();
-                    tokens.match(Token.KW_DO, DO_BRANCH_START_SET);
+                    tokens.match(Token.KW_DO); /* Cannot fail */
+                    /* Include SPERATATOR and KW_OD in recover set, as they may follow a branch */
                     branches.add(parseDoBranch(recoverSet.union(Token.SEPARATOR, Token.KW_OD)));
                     while (tokens.isMatch(Token.SEPARATOR)) {
-                        tokens.match(Token.SEPARATOR, DO_BRANCH_START_SET.union(Token.SEPARATOR));
+                        tokens.match(Token.SEPARATOR); /* Cannot fail */
+                        /* Include SPERATATOR and KW_OD as they may follow a branch */
                         branches.add(parseDoBranch(recoverSet.union(Token.SEPARATOR, Token.KW_OD)));
                     }
                     tokens.match(Token.KW_OD, recoverSet);
@@ -603,11 +612,11 @@ public class Parser {
 
     private final ParseMethod<StatementNode.AssignmentNode> assign =
             new ParseMethod<>((Location loc) -> {
-                List<ExpNode> left = new LinkedList<>();
-                List<ExpNode> right = new LinkedList<>();
-                left.add(new ExpNode.ErrorNode(loc));
-                right.add(new ExpNode.ErrorNode(loc));
-                return new StatementNode.AssignmentNode(loc, left, right);
+                List<ExpNode> lValues = new LinkedList<>();
+                List<ExpNode> exps = new LinkedList<>();
+                lValues.add(new ExpNode.ErrorNode(loc));
+                exps.add(new ExpNode.ErrorNode(loc));
+                return new StatementNode.AssignmentNode(loc, lValues, exps);
             });
 
     /**
@@ -620,14 +629,20 @@ public class Parser {
                      * Non-standard recovery set includes EQUALS because a
                      * common syntax error is to use EQUALS instead of ASSIGN.
                      */
-                    List<ExpNode> left = parseLValueList(recoverSet.union(Token.ASSIGN, Token.EQUALS));
+                    List<ExpNode> lValues = parseLValueList(
+                            recoverSet.union(Token.ASSIGN, Token.EQUALS));
                     Location loc = tokens.getLocation();
                     tokens.match(Token.ASSIGN, CONDITION_START_SET);
-                    List<ExpNode> right = parseConditionList(recoverSet);
-                    if (left.size() != right.size()){
-                        errors.error("number of variables does not match number of expressions in assignment", loc);
+                    List<ExpNode> exps = parseConditionList(recoverSet);
+                    /* Check the number of variables matches the number of expressions.
+                     * We check for this here as we have the information in the Parser, 
+                     * so report the error here, rather than in the static checker.
+                     */
+                    if (lValues.size() != exps.size()) {
+                        errors.error("number of variables does not match number of"
+                              + " expressions in assignment", loc);
                     }
-                    return new StatementNode.AssignmentNode(loc, left, right);
+                    return new StatementNode.AssignmentNode(loc, lValues, exps);
                 });
     }
 
@@ -653,13 +668,13 @@ public class Parser {
                      * Non-standard recovery set includes COMMA because they
                      * could put an accidental comma.
                      */
-                    List<ExpNode> lvalues = new LinkedList<>();
-                    lvalues.add(parseLValue(recoverSet.union(Token.COMMA)));
-                    while(tokens.isMatch(Token.COMMA)){
-                        tokens.match(Token.COMMA);
-                        lvalues.add(parseLValue(recoverSet.union(Token.COMMA)));
+                    List<ExpNode> lValues = new LinkedList<>();
+                    lValues.add(parseLValue(recoverSet.union(Token.COMMA)));
+                    while (tokens.isMatch(Token.COMMA)) {
+                        tokens.match(Token.COMMA); /* Cannot fail */
+                        lValues.add(parseLValue(recoverSet.union(Token.COMMA)));
                     }
-                    return lvalues;
+                    return lValues;
                 });
     }
 
@@ -669,10 +684,14 @@ public class Parser {
     private List<ExpNode> parseConditionList(TokenSet recoverSet) {
         return listexp.parse("Condition List", CONDITION_START_SET, recoverSet,
                 () -> {
+                    /* The current token is in CONDITION_START_SET.
+                     * Non-standard recovery set includes COMMA because they
+                     * could put an accidental comma.
+                     */
                     List<ExpNode> conditions = new LinkedList<>();
                     conditions.add(parseCondition(recoverSet.union(Token.COMMA)));
-                    while(tokens.isMatch(Token.COMMA)){
-                        tokens.match(Token.COMMA);
+                    while (tokens.isMatch(Token.COMMA)) {
+                        tokens.match(Token.COMMA); /* Cannot fail */
                         conditions.add(parseCondition(recoverSet.union(Token.COMMA)));
                     }
                     return conditions;

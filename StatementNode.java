@@ -113,12 +113,13 @@ public abstract class StatementNode {
             visitor.visitDoNode(this);
         }
 
+        /* Prints DoStatement as it would appear in code */
         @Override
         public String toString(int level) {
             String retval = "do ";
             for (int i = 0; i < branches.size(); i++) {
                 DoBranch branch = branches.get(i);
-                if (i != 0){
+                if (i != 0) {
                     retval += "[] ";
                 }
                 retval += branch.toString();
@@ -127,8 +128,11 @@ public abstract class StatementNode {
             return retval;
         }
 
-        public List<DoBranch> getBranches(){ return branches; }
+        public List<DoBranch> getBranches() { return branches; }
 
+        /* 
+         * Private class representing a DoBranch (as DoBranch is not a statement) 
+         */
         public static class DoBranch {
 
             private Location loc;
@@ -144,7 +148,7 @@ public abstract class StatementNode {
                 this.exit = exit;
             }
 
-            public void setCondition(ExpNode condition) {this.condition = condition; }
+            public void setCondition(ExpNode condition) { this.condition = condition; }
 
             public ExpNode getCondition() { return condition; }
 
@@ -238,14 +242,6 @@ public abstract class StatementNode {
             this.exps = exps;
         }
 
-//        String getVariableName() {
-//            if (lValue instanceof ExpNode.VariableNode) {
-//                return
-//                        ((ExpNode.VariableNode) lValue).getVariable().getIdent();
-//            } else {
-//                return "<no_name>";
-//            }
-//        }
 
         @Override
         public String toString(int level) {

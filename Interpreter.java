@@ -122,6 +122,7 @@ public class Interpreter implements StatementVisitor, ExpTransform<Value> {
     }
 
 
+
     /**
      * Execute code for an assignment statement
      */
@@ -135,14 +136,13 @@ public class Interpreter implements StatementVisitor, ExpTransform<Value> {
 
         /* Can do this in a single for loop because we can assume
          * exps and lValues are the same size */
-        for(int i = 0; i < exps.size(); i++){
+        for (int i = 0; i < exps.size(); i++) {
             expsEvaluated.add(exps.get(i).evaluate(this));
             lValsEvaluated.add(lValues.get(i).evaluate(this));
         }
 
-        /* need separate loop for assigning as evaluating needs
-           to be done first */
-        for(int i = 0; i < expsEvaluated.size(); i++){
+        /* need separate loop for assigning as evaluating needs to be done first */
+        for (int i = 0; i < expsEvaluated.size(); i++) {
             assignValue(lValsEvaluated.get(i), expsEvaluated.get(i));
         }
 
@@ -241,9 +241,12 @@ public class Interpreter implements StatementVisitor, ExpTransform<Value> {
         boolean foundTrueBranch;
         boolean exit = false;
 
+        /* Loop until exit reached, executing first branch with a true condition, then restarting.
+         * If no branch evaluates to true, then throw runtime error */
         while (!exit) {
             foundTrueBranch = false;
             for (StatementNode.DoNode.DoBranch branch : branches) {
+                /* Check if branch condition is true */
                 if (branch.getCondition().evaluate(this).getInteger() == Type.TRUE_VALUE) {
                     foundTrueBranch = true;
                     branch.getStatementList().accept(this);
@@ -252,7 +255,7 @@ public class Interpreter implements StatementVisitor, ExpTransform<Value> {
                 }
             }
 
-            // Runtime error if no condition evaluates to true;
+            /* Runtime error if no condition evaluates to true */
             if (!foundTrueBranch) {
                 runtime("No branch of do loop has a true guard", node.getLocation(), currentFrame);
             }

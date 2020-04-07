@@ -1,6 +1,5 @@
 package tree;
 
-import java.sql.Statement;
 import java.util.*;
 
 import source.VisitorDebugger;
@@ -114,14 +113,21 @@ public class StaticChecker implements DeclVisitor, StatementVisitor,
         endCheck("StatementError");
     }
 
+    /**
+     * Skip statement Node
+     */
     public void visitSkipNode(StatementNode.SkipNode node) {
         beginCheck("Skip");
         // Nothing to check - already valid.
         endCheck("Skip");
     }
 
+    /**
+     * DoStatement statement Node
+     */
     public void visitDoNode(DoNode node) {
         beginCheck("DoStatement");
+        /* Well formed if all of its Branches are well formed */
         List<DoNode.DoBranch> branches = node.getBranches();
         for (DoNode.DoBranch branch : branches) {
             visitDoBranch(branch);
@@ -130,9 +136,12 @@ public class StaticChecker implements DeclVisitor, StatementVisitor,
     }
 
 
+    /**
+     * DoBranch Node
+     */
     private void visitDoBranch(DoNode.DoBranch node) {
         beginCheck("DoBranch");
-
+        /* Well formed if its condition and statement list is well formed */
         StatementNode statements = node.getStatementList();
         // Check the condition and replace with (possibly) transformed node
         node.setCondition(checkCondition(node.getCondition()));
@@ -143,33 +152,6 @@ public class StaticChecker implements DeclVisitor, StatementVisitor,
     }
 
 
-//    /**
-//     * Assignment statement node
-//     */
-//    public void visitAssignmentNode(StatementNode.AssignmentNode node) {
-//        beginCheck("Assignment");
-//        // Check the left side left value.
-//        ExpNode left = node.getVariable().transform(this);
-//        node.setVariable(left);
-//        // Check the right side expression.
-//        ExpNode exp = node.getExp().transform(this);
-//        node.setExp(exp);
-//
-//
-//        // Validate that it is a true left value and not a constant
-//        if (left.getType() instanceof Type.ReferenceType) {
-//            /* Validate that the right side expression is assignment
-//             * compatible with the left value. This requires that the
-//             * right side expression is coerced to the base type of
-//             * type of the left side LValue. */
-//            Type baseType = ((Type.ReferenceType) left.getType()).getBaseType();
-//            node.setExp(baseType.coerceExp(exp));
-//        } else if (left.getType() != Type.ERROR_TYPE) {
-//                staticError("variable expected", left.getLocation());
-//        }
-//        endCheck("Assignment");
-//    }
-
     /**
      * Assignment statement node
      */
@@ -177,43 +159,43 @@ public class StaticChecker implements DeclVisitor, StatementVisitor,
         beginCheck("Assignment");
 
         Set <String> variableNames = new HashSet<>();
-        List<ExpNode> oldleft = node.getVariables();
-        List<ExpNode> oldright = node.getExps();
-        List<ExpNode> newleft = new LinkedList<>();
-        List<ExpNode> newright = new LinkedList<>();
+        List<ExpNode> oldLVals = node.getVariables();
+        List<ExpNode> oldExps  = node.getExps();
+        List<ExpNode> newLVals = new LinkedList<>();
+        List<ExpNode> newExps  = new LinkedList<>();
 
 
-        if (oldleft.size() != oldright.size()){
-            //staticError("number of variables does not match number of expressions in assignment", node.getLocation());
-        } else {
-
-            for (ExpNode expNode : oldleft){
+        /* If lists not the same size, parser error would have been thrown */
+        if (oldLVals.size() == oldExps.size()) {
+            for (ExpNode expNode : oldLVals) {
                 // Check the left side left value.
-                newleft.add(expNode.transform(this));
+                newLVals.add(expNode.transform(this));
             }
-            for (ExpNode expNode : oldright){
+            for (ExpNode expNode : oldExps) {
                 // Check the right side expression.
-                newright.add(expNode.transform(this));
+                newExps.add(expNode.transform(this));
             }
 
             // Check variable names are distinct
-            for (ExpNode expNode : newleft) {
-                if (expNode instanceof ExpNode.VariableNode) {
+            for (ExpNode lValue : newLVals) {
+                if (lValue instanceof ExpNode.VariableNode) {
                     // Set add function returns true if thing added already exists
-                    if (!variableNames.add(((ExpNode.VariableNode) expNode).getVariable().getIdent())){
-                        staticError((((ExpNode.VariableNode) expNode).getVariable().getIdent() + " assigned more than once"), expNode.getLocation());
+                    if (!variableNames.add(((ExpNode.VariableNode) lValue)
+                             .getVariable().getIdent())) {
+                        staticError((((ExpNode.VariableNode) lValue).getVariable().getIdent()
+                             + " assigned more than once"), lValue.getLocation());
                     }
                 } else {
                     if (!variableNames.add("<no-name>")){
-                        staticError("<no-name> assigned more than once", expNode.getLocation());
+                        staticError("<no-name> assigned more than once", lValue.getLocation());
                     }
                 }
             }
 
             // Check type are coercible
-            for (int i = 0; i < newleft.size(); i++){
-                ExpNode lValue = newleft.get(i);
-                ExpNode exp = newright.get(i);
+            for (int i = 0; i < newLVals.size(); i++) {
+                ExpNode lValue = newLVals.get(i);
+                ExpNode exp = newExps.get(i);
 
                 // Validate that it is a true left value and not a constant
                 if (lValue.getType() instanceof Type.ReferenceType) {
@@ -222,14 +204,14 @@ public class StaticChecker implements DeclVisitor, StatementVisitor,
                      * right side expression is coerced to the base type of
                      * type of the left side LValue. */
                     Type baseType = ((Type.ReferenceType) lValue.getType()).getBaseType();
-                    newright.set(i, baseType.coerceExp(exp));
+                    newExps.set(i, baseType.coerceExp(exp));
                 } else if (lValue.getType() != Type.ERROR_TYPE) {
                     staticError("variable expected", lValue.getLocation());
                 }
             }
 
-            node.setVariables(newleft);
-            node.setExps(newright);
+            node.setVariables(newLVals);
+            node.setExps(newExps);
         }
 
         endCheck("Assignment");
